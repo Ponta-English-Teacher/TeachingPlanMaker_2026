@@ -71,12 +71,22 @@ export async function POST(req: Request) {
   // of the address actually connected to (e.g. 127.0.0.1), so it can't be
   // used to validate same-origin requests. The incoming Host header reflects
   // the real destination address and isn't settable by browser JS, so it's
-  // used here instead — this accepts whichever local host/port (localhost or
-  // 127.0.0.1, on the port actually serving the app) the page was loaded
-  // from, while still rejecting requests whose Origin doesn't match it.
-  if (origin && (!host || origin !== `http://${host}`))
+  // used here instead. Only the Origin's host (hostname:port) is compared —
+  // not its scheme — so this accepts the app from wherever it's actually
+  // served: localhost/127.0.0.1 in local dev (http) and the deployed Vercel
+  // origin in production (https), while still rejecting any Origin whose
+  // host doesn't match where this request actually landed.
+  let originHost: string | null = null;
+  if (origin) {
+    try {
+      originHost = new URL(origin).host;
+    } catch {
+      originHost = null;
+    }
+  }
+  if (origin && (!host || originHost !== host))
     return Response.json(
-      { error: "Requests must come from this local app." },
+      { error: "Requests must come from this app's own origin." },
       { status: 403 },
     );
   if (!process.env.OPENAI_API_KEY)
